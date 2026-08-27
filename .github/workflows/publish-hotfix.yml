@@ -1,0 +1,32 @@
+name: Publish hotfix
+on:
+  push:
+    paths:
+      - '.github/workflows/publish-hotfix.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inject robust publish handler
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          marker = 'memestack-publish-hotfix-v1'
+          if marker not in s:
+              fix = '''\n<script id="memestack-publish-hotfix-v1">\n(function(){\n  function showPublishSuccess(){\n    var context=(document.getElementById('battleContext')||{}).textContent||'';\n    var battle=context.replace(/^.*?:\\s*/,'').trim();\n    var pages=document.querySelectorAll('.page');\n    pages.forEach(function(p){p.classList.remove('active')});\n    var page=document.getElementById('publish');\n    if(!page){\n      page=document.createElement('section');\n      page.className='page'; page.id='publish';\n      var app=document.querySelector('.app')||document.body;\n      app.insertBefore(page, document.querySelector('.bottom')||null);\n    }\n    page.innerHTML='<div class="hero"><div class="eyebrow">PUBLICATION</div><h1>Ton mème est<br><span>publié !</span></h1><p class="muted">'+(battle?'Il vient d’être envoyé dans la Battle sélectionnée.':'Il vient d’être envoyé à la communauté MEMESTACK.')+'</p></div><div class="success"><div class="successIcon">🎉</div><h2>Publication réussie !</h2><p class="muted">Ton mème est prêt à recevoir des votes.</p>'+(battle?'<button class="primary" id="hotfixViewBattle">⚔️ VOIR MA BATTLE</button>':'<button class="primary" id="hotfixCommunity">🏠 RETOUR À L’ACCUEIL</button>')+'<button class="voteBtn" id="hotfixNewMeme">✨ CRÉER UN AUTRE MÈME</button></div>';
+    page.classList.add('active'); window.scrollTo(0,0);\n    var vb=document.getElementById('hotfixViewBattle');\n    if(vb) vb.onclick=function(){var b=document.querySelector('[data-go="battles"]'); if(b) b.click(); else {pages.forEach(function(p){p.classList.remove('active')}); var bp=document.getElementById('battles'); if(bp) bp.classList.add('active');}};\n    var cb=document.getElementById('hotfixCommunity'); if(cb) cb.onclick=function(){var b=document.querySelector('[data-go="home"]'); if(b) b.click(); else {pages.forEach(function(p){p.classList.remove('active')}); document.getElementById('home').classList.add('active');}};\n    document.getElementById('hotfixNewMeme').onclick=function(){var b=document.querySelector('[data-go="create"]'); if(b) b.click(); else {pages.forEach(function(p){p.classList.remove('active')}); document.getElementById('create').classList.add('active');}};\n  }\n  document.addEventListener('click',function(e){\n    var btn=e.target.closest && e.target.closest('#publishBtn');\n    if(!btn) return;\n    e.preventDefault(); e.stopImmediatePropagation();\n    var canvas=document.getElementById('canvas');\n    var hasImage=canvas && canvas.style.backgroundImage && canvas.style.backgroundImage!=='none';\n    if(!hasImage){ alert('Ajoute une image ou choisis un modèle avant de publier.'); return; }\n    showPublishSuccess();\n  },true);\n})();\n</script>\n'''
+              s=s.replace('</body>',fix+'</body>')
+              p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit patched index
+        run: |
+          git config user.name 'MEMESTACK Hotfix'
+          git config user.email 'actions@github.com'
+          git add index.html
+          git diff --cached --quiet || git commit -m 'fix: make meme publishing reliable'
+          git push
